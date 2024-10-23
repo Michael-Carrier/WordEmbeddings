@@ -1,0 +1,118 @@
+import torch
+from transformers import RobertaTokenizer, RobertaModel
+from nltk.tokenize import word_tokenize
+import re
+import csv
+import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+import numpy as np
+
+# Load your text file
+def load_text(file_path):
+    with open(file_path, 'r', encoding='utf-8') as file:
+        text = file.read()
+    return text
+
+# Preprocess the text (tokenization, removing special characters)
+def preprocess_text(text):
+    text = re.sub(r'\W+', ' ', text.lower())  # Remove special characters and lowercase the text
+    tokens = word_tokenize(text)  # Tokenize the text into words
+    return tokens
+
+# Load words and categories from the first two columns of a CSV file
+def load_words_from_csv(csv_file_path):
+    words = []
+    categories = []
+    with open(csv_file_path, 'r', encoding='utf-8') as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader:
+            words.append(row[0].lower())  # Convert words to lowercase
+            if len(row) > 1:  # Check if there's a second column
+                categories.append(row[1])  # Second column (index 1) for categories
+            else:
+                categories.append('unknown')  # Default category if none provided
+    return words, categories
+
+# Get RoBERTa embeddings for the words
+def get_roberta_embeddings(words):
+    tokenizer = RobertaTokenizer.from_pretrained('roberta-base')
+    model = RobertaModel.from_pretrained('roberta-base')
+    
+    embeddings = []
+    with torch.no_grad():  # Disable gradient calculation for inference
+        for word in words:
+            # Tokenize and convert to tensor
+            inputs = tokenizer(word, return_tensors='pt')
+            outputs = model(**inputs)
+            # Take the embeddings from the last hidden state
+            word_embedding = outputs.last_hidden_state.mean(dim=1).squeeze().numpy()  # Average the token embeddings
+            embeddings.append(word_embedding)
+    
+    return np.array(embeddings)
+
+# Save the word vectors and categories to a CSV file
+def save_vectors_to_csv(words, vectors, categories, output_file_path):
+    with open(output_file_path, 'w', newline='', encoding='utf-8') as csvfile:
+        writer = csv.writer(csvfile)
+        # Write header
+        writer.writerow(['Word', 'Category'] + [f'Embedding_{i}' for i in range(vectors.shape[1])])
+        # Write data
+        for i, word in enumerate(words):
+            writer.writerow([word, categories[i]] + vectors[i].tolist())
+
+# Visualize word vectors using PCA or t-SNE with color coding
+def visualize_word_vectors(words, vectors, categories, method='tsne'):
+    if method == 'pca':
+        pca = PCA(n_components=2)
+        reduced_vectors = pca.fit_transform(vectors)
+    else:
+        tsne = TSNE(n_components=2, random_state=42)
+        reduced_vectors = tsne.fit_transform(vectors)
+
+    # Define color mapping
+    color_mapping = {
+        'romburital place': 'blue',
+        'geographic feature': 'green',
+        'unidentified place': 'red',
+        'pleiades title': 'grey',
+        'rome': 'orange'
+    }
+
+    plt.figure(figsize=(12, 12))  # Adjusted figure size
+    for i, word in enumerate(words):
+        color = color_mapping.get(categories[i].lower(), 'black')  # Default to black if category not found
+        print(f"Word: {word}, Category: {categories[i]}, Assigned Color: {color}")  # Debugging color assignment
+        plt.scatter(reduced_vectors[i, 0], reduced_vectors[i, 1], color=color)
+        plt.text(reduced_vectors[i, 0] + 0.01, reduced_vectors[i, 1] + 0.01, word, fontsize=10)  # Decreased font size
+    plt.title(f'Word Vectors Visualization using {method.upper()}')
+    plt.grid()
+    plt.show()
+
+# Main function to execute the workflow
+def main():
+    text_file_path = r'C:\Users\User\Documents\random py scripts\word2eve\word2evec\livy.txt'  # Path to your book in .txt format
+    csv_file_path = r'C:\Users\User\Documents\random py scripts\thesis\nomic.ai\words_found_in_livy.csv'  # Path to your CSV file
+    output_csv_file_path = r'C:\Users\User\Documents\random py scripts\output_word_vectors.csv'  # Path to the output CSV file
+    
+    text = load_text(text_file_path)
+    tokens = preprocess_text(text)
+
+    # Load words and categories from the first two columns of the CSV
+    words_to_analyze, categories = load_words_from_csv(csv_file_path)
+    vectors = get_roberta_embeddings(words_to_analyze)
+
+    # Debug prints
+    print("Words to analyze:", words_to_analyze)
+    print("Vectors shape:", vectors.shape)
+    print("Categories:", categories)
+
+    # Save the vectors to a CSV file
+    save_vectors_to_csv(words_to_analyze, vectors, categories, output_csv_file_path)
+    print(f"Word vectors saved to {output_csv_file_path}")
+
+    # Visualize the word vectors (using t-SNE or PCA)
+    visualize_word_vectors(words_to_analyze, vectors, categories, method='tsne')  # You can also try 'pca' for PCA
+
+if __name__ == "__main__":
+    main()
