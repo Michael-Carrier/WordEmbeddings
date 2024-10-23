@@ -35,5 +35,3 @@ These two script will create a TSNE visualization and and output csv which holds
 
 BERT model (Bidirectional Encoder Representations from Transformers) is a word vector model which focuses on capturing the context for the word.
 Roberta model is simular to BERT but it does not have next sentence prediction (and other things that I will explain in the near future.
-
-Th
